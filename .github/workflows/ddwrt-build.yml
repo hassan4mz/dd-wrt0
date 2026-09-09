@@ -1,0 +1,190 @@
+name: DD-WRT Build for MT7621 Devices
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'configs/**'
+      - 'patches/**'
+      - 'scripts/**'
+      - '.github/workflows/**'
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      device:
+        description: 'Target device (msg1500 or r6220)'
+        required: true
+        default: 'msg1500'
+        type: choice
+        options:
+          - msg1500
+          - r6220
+          - both
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'standard'
+        type: choice
+        options:
+          - standard
+          - mini
+          - micro
+
+env:
+  DDWRT_REPO: "https://svn.dd-wrt.com/Generic/"
+  BUILD_DIR: "/home/runner/work/ddwrt-mt7621/ddwrt-mt7621/build"
+
+jobs:
+  build:
+    name: Build DD-WRT for ${{ matrix.device }}
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        device: ${{ fromJSON(github.event.inputs.device == 'both' && '["msg1500", "r6220"]' || '["${{ github.event.inputs.device || ''msg1500'' }}"]') }}
+      fail-fast: false
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            bison \
+            flex \
+            g++ \
+            gawk \
+            gcc-multilib \
+            gettext \
+            git \
+            libncurses5-dev \
+            libssl-dev \
+            patch \
+            python3 \
+            zlib1g-dev \
+            subversion \
+            wget \
+            curl \
+            unzip \
+            qemu-system-mips \
+            bc \
+            ccache \
+            libelf-dev \
+            libfdt-dev \
+            libpixman-1-dev
+
+      - name: Setup Build Environment
+        run: |
+          mkdir -p $BUILD_DIR
+          cd $BUILD_DIR
+          
+          # Create necessary directories
+          mkdir -p src/opt
+          mkdir -p firmware
+
+      - name: Download DD-WRT Source
+        run: |
+          cd $BUILD_DIR
+          echo "Downloading DD-WRT source..."
+          svn co $DDWRT_REPO src
+          cd src
+          ls -la
+
+      - name: Configure Build for MT7621
+        run: |
+          cd $BUILD_DIR/src/router
+          
+          # Copy device-specific configuration
+          cp ../../configs/mt7621_config.txt .config 2>/dev/null || \
+          cp ../../configs/msg1500_config.txt .config 2>/dev/null || \
+          echo "Using default config"
+          
+          # Enable MT7621 support
+          echo "CONFIG_MT7621=y" >> .config
+          echo "CONFIG_MIPS=y" >> .config
+
+      - name: Apply Patches
+        run: |
+          cd $BUILD_DIR/src
+          if [ -d "../../patches" ] && [ "$(ls -A ../../patches/*.patch 2>/dev/null)" ]; then
+            echo "Applying patches..."
+            for patch in ../../patches/*.patch; do
+              echo "Applying $patch"
+              patch -p1 < "$patch" || echo "Warning: Patch $patch failed"
+            done
+          else
+            echo "No patches to apply"
+          fi
+
+      - name: Build Firmware
+        run: |
+          cd $BUILD_DIR/src/router
+          
+          # Clean previous builds
+          make clean 2>/dev/null || true
+          
+          # Start build
+          echo "Starting DD-WRT build for MT7621..."
+          make -j$(nproc) 2>&1 | tee ../../build.log || {
+            echo "Build failed! Check logs:"
+            tail -100 ../../build.log
+            exit 1
+          }
+
+      - name: Prepare Firmware Artifacts
+        run: |
+          cd $BUILD_DIR
+          mkdir -p artifacts
+          
+          # Copy built firmware
+          find src -name "*.bin" -type f -exec cp {} artifacts/ \;
+          find src -name "*.trx" -type f -exec cp {} artifacts/ \;
+          
+          # Create info file
+          cat > artifacts/BUILD_INFO.txt << INFO
+          Build Date: $(date -u)
+          Device: ${{ matrix.device }}
+          Commit: ${{ github.sha }}
+          Runner: ${{ runner.os }}
+          Build Log: See build_log.txt
+          INFO
+          
+          cp build.log artifacts/build_log.txt
+          
+          ls -la artifacts/
+
+      - name: Upload Firmware Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ddwrt-${{ matrix.device }}-firmware-${{ github.run_number }}
+          path: ${{ env.BUILD_DIR }}/artifacts/
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Create Release (on tags only)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ env.BUILD_DIR }}/artifacts/*.bin
+          body_path: ${{ env.BUILD_DIR }}/artifacts/BUILD_INFO.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notify:
+    name: Notify Build Status
+    runs-on: ubuntu-22.04
+    needs: build
+    if: always()
+    steps:
+      - name: Check Build Status
+        run: |
+          if [ "${{ needs.build.result }}" == "success" ]; then
+            echo "✅ Build completed successfully!"
+            echo "Check the Actions tab for firmware downloads."
+          else
+            echo "❌ Build failed. Please check the logs."
+            exit 1
+          fi

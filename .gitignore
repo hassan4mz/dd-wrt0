@@ -1,0 +1,22 @@
+# Build artifacts
+build/
+output/
+*.bin
+*.trx
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp

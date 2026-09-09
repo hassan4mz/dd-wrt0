@@ -1,0 +1,71 @@
+# DD-WRT Configuration for MT7621-based devices (MSG1500, R6220)
+# This is a starting point configuration - needs verification
+
+# Architecture
+CONFIG_MIPS=y
+CONFIG_MT7621=y
+TARGET_ARCH="mips"
+TARGET_BOARD="mt7621"
+TARGET_CPU="24kec"
+
+# Device identification
+DEVICE_NAME="Raisecom MSG1500/R6220"
+DEVICE_ID="msg1500"
+
+# Flash and Memory settings (adjust based on actual hardware)
+CONFIG_FLASH_SIZE=16
+CONFIG_RAM_SIZE=128
+
+# Essential features
+CONFIG_ROUTER=y
+CONFIG_NAT=y
+CONFIG_FIREWALL=y
+CONFIG_DHCPD=y
+CONFIG_DNSMASQ=y
+
+# Wireless (MT7621 has built-in 2.4GHz, typically paired with MT7603/MT7613 for 5GHz)
+CONFIG_WIRELESS=y
+CONFIG_MAC80211=y
+CONFIG_HOSTAPD=y
+CONFIG_WPA_SUPPLICANT=y
+
+# Ethernet switch
+CONFIG_SWCONFIG=y
+CONFIG_MT7530=y
+
+# USB support (if available on device)
+CONFIG_USB=y
+CONFIG_USB_STORAGE=y
+CONFIG_USB_UHCI=y
+CONFIG_USB_OHCI=y
+CONFIG_USB_EHCI=y
+
+# Serial console
+CONFIG_SERIAL_CONSOLE=y
+CONFIG_SERIAL_BAUDRATE=115200
+
+# Compression
+CONFIG_LZMA=y
+
+# Debugging (disable for production builds)
+CONFIG_DEBUG=n
+CONFIG_KERNEL_DEBUG=n
+
+# Size optimization
+CONFIG_SMALL_FLASH=y
+# CONFIG_MICRO=y  # Uncomment for very small builds
+
+# Network services
+CONFIG_HTTPD=y
+CONFIG_DROPBEAR=y
+CONFIG_SSH=y
+CONFIG_TELNETD=n
+
+# IPv6 support
+CONFIG_IPV6=y
+
+# VLAN support
+CONFIG_8021Q=y
+
+# GPIO support
+CONFIG_GPIO=y
