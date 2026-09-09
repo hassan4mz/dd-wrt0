@@ -32,7 +32,7 @@ on:
           - micro
 
 env:
-  DDWRT_REPO: "https://svn.dd-wrt.com/Generic/"
+  DDWRT_REPO: "svn://svn.dd-wrt.com/DD-WRT"
   BUILD_DIR: "/home/runner/work/ddwrt-mt7621/ddwrt-mt7621/build"
 
 jobs:
